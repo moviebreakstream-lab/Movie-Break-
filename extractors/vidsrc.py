@@ -1,15 +1,12 @@
 import httpx
 import re
-import base64
-import json
 from bs4 import BeautifulSoup
 
 class VidsrcExtractor:
     def __init__(self):
-        # استخدام نطاقات متعددة لزيادة الموثوقية
-        self.domains = ["https://vidsrc.to", "https://vidsrc.me", "https://vidsrc.net"]
+        self.domains = ["https://vidsrc.to", "https://vidsrc.me", "https://vidsrc.net", "https://vidsrc.xyz"]
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Referer": "https://vidsrc.to/"
         }
 
@@ -21,46 +18,37 @@ class VidsrcExtractor:
                 else:
                     url = f"{base_url}/embed/movie/{media_id}"
                 
-                async with httpx.AsyncClient(headers=self.headers, follow_redirects=True, timeout=15) as client:
+                async with httpx.AsyncClient(headers=self.headers, follow_redirects=True, timeout=10) as client:
                     response = await client.get(url)
                     if response.status_code != 200:
                         continue
                     
-                    # استخراج الرابط المباشر من iframe أو المشغل
-                    # vidsrc غالباً ما تستخدم وسيطاً (proxy) أو إعادة توجيه
-                    if "playlist.m3u8" in response.text:
-                        m3u8_match = re.search(r'(https?://[^\s"\'<>]+playlist\.m3u8[^\s"\'<>]*)', response.text)
-                        if m3u8_match:
+                    # محاولة استخراج رابط البث المباشر من السورس
+                    m3u8_patterns = [
+                        r'(https?://[^\s"\'<>]+playlist\.m3u8[^\s"\'<>]*)',
+                        r'(https?://[^\s"\'<>]+master\.m3u8[^\s"\'<>]*)',
+                        r'file:\s*["\'](https?://[^"\']+\.m3u8[^"\']*)["\']'
+                    ]
+                    
+                    for pattern in m3u8_patterns:
+                        match = re.search(pattern, response.text)
+                        if match:
                             return {
                                 "source": f"Vidsrc ({base_url.split('//')[1]})",
-                                "m3u8_url": m3u8_match.group(1),
+                                "m3u8_url": match.group(1).replace("\\/", "/"),
                                 "subtitles": self.extract_subtitles(response.text),
                                 "quality": "Auto"
                             }
                     
-                    # محاولة استخراج data-id وجلب المصادر
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    player_div = soup.find('div', {'id': 'player'}) or soup.find('iframe', {'id': 'player'})
-                    data_id = None
-                    if player_div:
-                        data_id = player_div.get('data-id') or player_div.get('src')
-                    
-                    if not data_id:
-                        match = re.search(r'data-id="([^"]+)"', response.text)
-                        data_id = match.group(1) if match else None
-
-                    if data_id:
-                        # في حال وجود data-id، نستخدم API داخلي (هذا الجزء يحتاج مفاتيح فك تشفير حقيقية)
-                        # كحل بديل قوي، سنعيد رابط الـ embed نفسه إذا تعذر الاستخراج العميق
-                        # العديد من مشغلات IPTV تدعم روابط الـ embed مباشرة
-                        return {
-                            "source": f"Vidsrc ({base_url.split('//')[1]})",
-                            "m3u8_url": url,
-                            "subtitles": self.extract_subtitles(response.text),
-                            "quality": "Direct Embed"
-                        }
+                    # إذا لم نجد رابط m3u8 مباشر، نعيد رابط الـ embed ليعمل في المشغلات المتطورة
+                    return {
+                        "source": f"Vidsrc ({base_url.split('//')[1]})",
+                        "m3u8_url": url,
+                        "subtitles": self.extract_subtitles(response.text),
+                        "quality": "Embed"
+                    }
             except Exception as e:
-                print(f"Error with {base_url}: {e}")
+                print(f"Vidsrc Error ({base_url}): {e}")
                 continue
         return None
 
@@ -68,5 +56,5 @@ class VidsrcExtractor:
         subs = []
         matches = re.findall(r'["\']?file["\']?:\s*["\']([^"\']+\.vtt[^"\']*)["\']\s*,\s*["\']?label["\']?:\s*["\']([^"\']+)["\']', html)
         for file, label in matches:
-            subs.append({"url": file, "lang": label})
+            subs.append({"url": file.replace("\\/", "/"), "lang": label})
         return subs
