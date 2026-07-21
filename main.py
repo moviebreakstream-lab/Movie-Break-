@@ -1,4 +1,8 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 from core.engine import MovieBreakEngine
 
 async def main():
@@ -11,13 +15,19 @@ async def main():
         {"id": "tt0903747", "type": "tv", "season": 1, "episode": 1} # Breaking Bad
     ]
     
+    # تأكد من تعيين TMDB_API_KEY في ملف .env أو كمتغير بيئة
+    if not os.getenv("TMDB_API_KEY"):
+        print("خطأ: لم يتم تعيين متغير البيئة TMDB_API_KEY. يرجى إضافته.")
+        return
+    
     print("جاري استخراج الروابط بالتوازي...")
     results = await engine.extract_parallel(test_media)
     
-    playlist = engine.generate_iptv_playlist(results)
+            playlist = engine.generate_iptv_playlist(results)
     
     with open("playlist.m3u", "w", encoding="utf-8") as f:
         f.write(playlist)
+
     
     print("تم إنشاء قائمة IPTV بنجاح: playlist.m3u")
 
