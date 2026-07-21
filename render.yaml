@@ -1,6 +1,6 @@
 services:
-  - type: worker
-    name: movie-break-worker
+  - type: web
+    name: movie-break-service
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"

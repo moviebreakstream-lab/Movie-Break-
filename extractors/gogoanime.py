@@ -1,47 +1,48 @@
 import httpx
 import re
-import base64
 from bs4 import BeautifulSoup
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 
 class GogoAnimeExtractor:
     def __init__(self):
-        self.base_url = "https://gogoanime3.co"
+        self.domains = ["https://gogoanime3.co", "https://gogoanime.hu", "https://gogoanime.run"]
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         }
 
     async def get_m3u8(self, anime_id, episode_num=1):
-        """
-        يستخرج روابط M3u8 لحلقة أنمي من GogoAnime.
-        """
-        episode_url = f"{self.base_url}/{anime_id}-episode-{episode_num}"
-        
-        async with httpx.AsyncClient(headers=self.headers, follow_redirects=True) as client:
+        for base_url in self.domains:
             try:
-                response = await client.get(episode_url)
-                if response.status_code != 200:
-                    return None
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                iframe = soup.find('iframe')
-                if not iframe:
-                    return None
-                
-                iframe_url = "https:" + iframe['src'] if iframe['src'].startswith('//') else iframe['src']
-                
-                # جلب محتوى iframe لاستخراج مفاتيح فك التشفير
-                iframe_resp = await client.get(iframe_url)
-                # استخراج المعاملات المطلوبة لفك تشفير AJAX (GogoPlay logic)
-                # هذا يتطلب تنفيذ منطق فك تشفير AES بمفاتيح GogoAnime المعروفة
-                
-                return {
-                    "source": "GogoAnime",
-                    "m3u8_url": f"{iframe_url}&hls=1", # تبسيط: العديد من المشغلات تدعم hls كباراميتر
-                    "subtitles": [],
-                    "quality": "720p/1080p"
-                }
+                episode_url = f"{base_url}/{anime_id}-episode-{episode_num}"
+                async with httpx.AsyncClient(headers=self.headers, follow_redirects=True, timeout=15) as client:
+                    response = await client.get(episode_url)
+                    if response.status_code != 200:
+                        continue
+                    
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    # البحث عن روابط المشغلات (GogoPlay, Vidstreaming)
+                    iframe = soup.find('iframe')
+                    if iframe and iframe.get('src'):
+                        iframe_url = iframe['src']
+                        if iframe_url.startswith('//'):
+                            iframe_url = "https:" + iframe_url
+                        
+                        # استخراج الرابط المباشر إذا كان موجوداً في الصفحة
+                        m3u8_match = re.search(r'(https?://[^\s"\'<>]+playlist\.m3u8[^\s"\'<>]*)', response.text)
+                        if m3u8_match:
+                            return {
+                                "source": "GogoAnime (Direct)",
+                                "m3u8_url": m3u8_match.group(1),
+                                "subtitles": [],
+                                "quality": "Auto"
+                            }
+                        
+                        return {
+                            "source": "GogoAnime (Embed)",
+                            "m3u8_url": iframe_url,
+                            "subtitles": [],
+                            "quality": "Direct Embed"
+                        }
             except Exception as e:
-                print(f"Error in GogoAnimeExtractor: {e}")
-                return None
+                print(f"Error with {base_url}: {e}")
+                continue
+        return None
