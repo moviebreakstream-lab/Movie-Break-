@@ -8,7 +8,6 @@ from core.engine import MovieBreakEngine
 async def main():
     engine = MovieBreakEngine()
     
-    # مثال لبيانات وسائط للاستخراج
     # قائمة وسائط حقيقية للاختبار
     test_media = [
         {"id": "tt0111161", "type": "movie"}, # The Shawshank Redemption
@@ -26,11 +25,10 @@ async def main():
     print("جاري استخراج الروابط بالتوازي...")
     results = await engine.extract_parallel(test_media)
     
-            playlist = engine.generate_iptv_playlist(results)
+    playlist = engine.generate_iptv_playlist(results)
     
     with open("playlist.m3u", "w", encoding="utf-8") as f:
         f.write(playlist)
-
     
     print("تم إنشاء قائمة IPTV بنجاح: playlist.m3u")
 
