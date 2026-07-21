@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 from fastapi import FastAPI, Response, Query, HTTPException
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -9,78 +8,53 @@ import uvicorn
 
 load_dotenv()
 
-app = FastAPI(title="Movie Break Professional API")
+app = FastAPI(title="Movie Break ID-Based API")
 engine = MovieBreakEngine()
-
-def parse_url(url: str):
-    """
-    تحليل رابط الفيلم أو المسلسل لاستخراج النوع والـ ID.
-    يدعم روابط IMDb و روابط مشهورة أخرى.
-    """
-    # IMDb Pattern: tt1234567
-    imdb_match = re.search(r'tt\d+', url)
-    if imdb_match:
-        media_id = imdb_match.group(0)
-        if "/tv/" in url or "episodes" in url:
-            return media_id, "tv"
-        return media_id, "movie"
-    
-    # GogoAnime Pattern
-    if "gogoanime" in url:
-        anime_id = url.split("/")[-1].replace("-episode-", "").split("?")[0]
-        # محاولة استخراج رقم الحلقة إذا وجد
-        ep_match = re.search(r'episode-(\d+)', url)
-        episode = int(ep_match.group(1)) if ep_match else 1
-        return anime_id, "anime", episode
-
-    return None, None
 
 @app.get("/")
 async def root():
     return {
-        "status": "Movie Break API is Active",
-        "endpoints": {
-            "/extract": "استخراج روابط M3u8 من رابط URL مباشر",
-            "/playlist.m3u": "توليد قائمة IPTV مخصصة",
-            "/search": "البحث عن فيلم أو مسلسل وجلب روابطه"
-        },
+        "status": "Active",
+        "service": "Movie Break Professional Extraction",
         "usage": {
-            "extract_example": "/extract?url=https://www.imdb.com/title/tt0111161/",
-            "playlist_example": "/playlist.m3u?ids=tt0111161,tt0903747"
-        }
+            "extract_movie": "/movie/{id}",
+            "extract_tv": "/tv/{id}/{season}/{episode}",
+            "extract_anime": "/anime/{id}/{episode}",
+            "iptv_playlist": "/playlist.m3u?ids=id1,id2,id3"
+        },
+        "example": "/movie/tt0111161"
     }
 
-@app.get("/extract")
-async def extract(url: str = Query(..., description="رابط الفيلم أو المسلسل أو الأنمي")):
-    media_id, media_type, *extra = parse_url(url)
-    if not media_id:
-        # إذا لم يكن رابطاً معروفاً، نفترض أنه ID مباشر
-        media_id = url
-        media_type = "movie" # افتراضي
-
-    episode = extra[0] if extra else 1
-    
-    media_item = {"id": media_id, "type": media_type, "episode": episode}
-    results = await engine.extract_parallel([media_item])
-    
+@app.get("/movie/{movie_id}")
+async def get_movie(movie_id: str):
+    results = await engine.extract_parallel([{"id": movie_id, "type": "movie"}])
     if not results:
-        raise HTTPException(status_code=404, detail="تعذر استخراج الروابط من هذا المصدر")
-    
+        raise HTTPException(status_code=404, detail="Movie not found or extraction failed")
+    return JSONResponse(content=results[0])
+
+@app.get("/tv/{tv_id}/{season}/{episode}")
+async def get_tv(tv_id: str, season: int, episode: int):
+    results = await engine.extract_parallel([{"id": tv_id, "type": "tv", "season": season, "episode": episode}])
+    if not results:
+        raise HTTPException(status_code=404, detail="Episode not found or extraction failed")
+    return JSONResponse(content=results[0])
+
+@app.get("/anime/{anime_id}/{episode}")
+async def get_anime(anime_id: str, episode: int):
+    results = await engine.extract_parallel([{"id": anime_id, "type": "anime", "episode": episode}])
+    if not results:
+        raise HTTPException(status_code=404, detail="Anime episode not found or extraction failed")
     return JSONResponse(content=results[0])
 
 @app.get("/playlist.m3u")
-async def get_playlist(ids: str = Query(None, description="قائمة IMDb IDs مفصولة بفاصلة")):
+async def get_playlist(ids: str = Query(..., description="IMDb IDs separated by comma")):
+    id_list = ids.split(",")
     media_list = []
-    if ids:
-        id_list = ids.split(",")
-        for mid in id_list:
-            media_list.append({"id": mid.strip(), "type": "tv" if "tv" in mid else "movie"})
-    else:
-        # وسائط افتراضية إذا لم يتم تحديد IDs
-        media_list = [
-            {"id": "tt0111161", "type": "movie"},
-            {"id": "tt0903747", "type": "tv", "season": 1, "episode": 1}
-        ]
+    for mid in id_list:
+        mid = mid.strip()
+        # تحديد النوع بناءً على النمط (بسيط)
+        m_type = "tv" if "tv" in mid else "movie" 
+        media_list.append({"id": mid, "type": m_type})
     
     results = await engine.extract_parallel(media_list)
     playlist = engine.generate_iptv_playlist(results)
