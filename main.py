@@ -9,10 +9,13 @@ async def main():
     engine = MovieBreakEngine()
     
     # مثال لبيانات وسائط للاستخراج
+    # قائمة وسائط حقيقية للاختبار
     test_media = [
         {"id": "tt0111161", "type": "movie"}, # The Shawshank Redemption
-        {"id": "one-piece", "type": "anime", "episode": 1000},
-        {"id": "tt0903747", "type": "tv", "season": 1, "episode": 1} # Breaking Bad
+        {"id": "one-piece", "type": "anime", "episode": 1100},
+        {"id": "tt0903747", "type": "tv", "season": 1, "episode": 1}, # Breaking Bad
+        {"id": "tt14715170", "type": "movie"}, # John Wick: Chapter 4
+        {"id": "tt0460681", "type": "tv", "season": 1, "episode": 1} # Supernatural
     ]
     
     # تأكد من تعيين TMDB_API_KEY في ملف .env أو كمتغير بيئة

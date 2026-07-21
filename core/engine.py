@@ -55,13 +55,13 @@ class MovieBreakEngine:
 
             if extractor_task and tmdb_task:
                 extractor_result, tmdb_data = await asyncio.gather(extractor_task, tmdb_task, return_exceptions=True)
-                if not isinstance(extractor_result, Exception):
-                    extractor_result["tmdb_data"] = tmdb_data
+                if extractor_result and not isinstance(extractor_result, Exception):
+                    extractor_result["tmdb_data"] = tmdb_data if not isinstance(tmdb_data, Exception) else None
                     extractor_result["type"] = media["type"]
                     extractor_result["id"] = media["id"]
                     results.append(extractor_result)
                 else:
-                    print(f"Error extracting from {media.get(\'source\')}: {extractor_result}")
+                    print(f"فشل الاستخراج لـ {media.get(\'id\')}")
             elif extractor_task:
                 extractor_result = await extractor_task
                 if not isinstance(extractor_result, Exception):
