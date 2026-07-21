@@ -1,0 +1,7 @@
+httpx
+beautifulsoup4
+cryptography
+asyncio
+aiohttp
+pybase64
+python-dotenv
