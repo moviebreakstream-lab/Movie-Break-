@@ -17,7 +17,6 @@ class MovieBreakEngine:
             m_type = media.get("type", "movie")
             m_id = media.get("id")
             
-            # جلب البيانات من المصدر و TMDB بالتوازي لكل عنصر
             try:
                 if m_type in ["movie", "tv"]:
                     extractor_task = self.vidsrc.get_m3u8(
@@ -26,6 +25,7 @@ class MovieBreakEngine:
                         season=media.get("season", 1),
                         episode=media.get("episode", 1)
                     )
+                    # محاولة جلب بيانات TMDB ولكن لا تدعها تعطل الاستخراج
                     tmdb_task = self.tmdb.get_movie_details(m_id) if m_type == "movie" else self.tmdb.get_tv_details(m_id)
                 else: # anime
                     extractor_task = self.gogo.get_m3u8(m_id, episode_num=media.get("episode", 1))
@@ -37,12 +37,14 @@ class MovieBreakEngine:
                     ext_res["tmdb_data"] = tmdb_data if tmdb_data and not isinstance(tmdb_data, Exception) else None
                     ext_res["type"] = m_type
                     ext_res["id"] = m_id
+                    
+                    # إذا كان الرابط هو رابط embed، نحاول استخلاص m3u8 منه إذا كان ممكناً
+                    # أو على الأقل نوضح أنه رابط بث
                     return ext_res
             except Exception as e:
                 print(f"Critical error processing {m_id}: {e}")
             return None
 
-        # تشغيل جميع المهام بالتوازي
         tasks = [process_item(m) for m in media_list]
         results = await asyncio.gather(*tasks)
         return [r for r in results if r is not None]
@@ -56,7 +58,6 @@ class MovieBreakEngine:
             if not item or not item.get("m3u8_url"):
                 continue
             
-            # جلب أفضل عنوان متاح
             title = "Unknown Content"
             poster = ""
             if item.get("tmdb_data"):
@@ -65,8 +66,9 @@ class MovieBreakEngine:
                 if p_path:
                     poster = f"https://image.tmdb.org/t/p/w500{p_path}"
             
-            # تنسيق احترافي لسطر المعلومات
-            info = f'#EXTINF:-1 tvg-id="{item.get("id")}" tvg-name="{title}" tvg-logo="{poster}" group-title="{item.get("type").upper()}",{title} [{item.get("quality")}]'
+            quality = item.get("quality", "HD")
+            source = item.get("source", "Unknown")
+            info = f'#EXTINF:-1 tvg-id="{item.get("id")}" tvg-name="{title}" tvg-logo="{poster}" group-title="{item.get("type").upper()}",{title} [{quality}] ({source})'
             playlist += f"{info}\n{item.get('m3u8_url')}\n"
         
         return playlist
