@@ -1,9 +1,7 @@
 services:
   - type: web
     name: movie-break-service
-    env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    runtime: docker
     envVars:
       - key: TMDB_API_KEY
         sync: false

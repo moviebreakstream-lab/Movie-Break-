@@ -6,3 +6,5 @@ pybase64
 python-dotenv
 fastapi
 uvicorn
+playwright
+asyncio
